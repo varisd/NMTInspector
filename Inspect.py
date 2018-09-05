@@ -5,6 +5,7 @@ import sys
 
 import toolkits.ONMT
 import toolkits.vivisectONMT
+#import toolkits.vivisectNeuralMonkey
 try:
     import toolkits.vivisectSockeye
     use_sockeye = True
@@ -12,7 +13,7 @@ except ImportError:
     use_sockeye = False
 import argparse
 import logging
-#import representation.DataSet
+import representation.Dataset
 import annotator.BPE
 import annotator.SentenceLabels
 import annotator.TokenLabels
@@ -21,7 +22,6 @@ import inspector.Classifier
 import inspector.Predictor
 import inspector.Autoencoder
 import json
-
 
 
 logging.basicConfig(format='%(message)s')
@@ -33,19 +33,20 @@ def main():
     
     
     parser.add_argument('-prediction_task', type=str,default="",
-                        choices=['BPE','SentenceLabels','TokenLabels',''],
+                        choices=['BPE', 'SentenceLabels', 'TokenLabels', ''],
                         help="""Predicition task to be used to analyse the hidden representations""")
 
     parser.add_argument('-ml_technique', type=str, default="intrinsic",
-                        choices=['intrinsic','classifier','predictor','autoencoder','none'],
-                        help="""Technique used to analse the hidden representations""")
+                        choices=['intrinsic', 'classifier', 'predictor',
+                                 'autoencoder', 'none'],
+                        help="""Technique used to analyse the hidden representations""")
 
     parser.add_argument('-inspection_model', type=str, default="",
                         help="""File to save/load the model used for inspection""")
     parser.add_argument('-store_inspection_model', action='store_true',
-                       help="""Store the model used for inpsection""")
+                       help="""Store the model used for inspection""")
     parser.add_argument('-load_inspection_model', action='store_true',
-                       help="""Load the model used for inpsection""")
+                       help="""Load the model used for inspection""")
     parser.add_argument('-output_predictions', action='store_true',
                        help="""Output class prediction for all sentences""")
     parser.add_argument('-inspection_model_input', type=str, default="Word",
@@ -58,14 +59,15 @@ def main():
                         help="""Parameter for the inspection model""")
 
     parser.add_argument('-representation', type=str, default="EncoderWordEmbeddings",
-                        choices=['EncoderWordEmbeddings','EncoderHiddenLayer','ContextVector','DecoderWordEmbeddings',
+                        choices=['EncoderWordEmbeddings', 'EncoderHiddenLayer',
+                                 'ContextVector', 'DecoderWordEmbeddings',
                                  'DecoderHiddenLayer'],
                         help="""Representation should be analysed""")
     parser.add_argument('-label_representation', type=str, default="",
-                        choices=['','EncoderWordEmbeddings','EncoderHiddenLayer','ContextVector','DecoderWordEmbeddings',
+                        choices=['', 'EncoderWordEmbeddings', 'EncoderHiddenLayer',
+                                 'ContextVector', 'DecoderWordEmbeddings',
                                  'DecoderHiddenLayer'],
                         help="""Representation should be predicted""")
-
 
 
     parser.add_argument('-source_test_data', type=str, default="",
@@ -78,7 +80,8 @@ def main():
                         help="""Model that should be analyzed""")
 
     parser.add_argument('-model_type', type=str, default="",
-                        choices=['OpenNMT','vivisectONMT','vivisectSockeye'],
+                        choices=['OpenNMT', 'vivisectONMT', 'vivisectSockeye',
+                                 'vivisectNeuralMonkey'],
                         help="""Framework used to train the model""")
 
 
@@ -91,12 +94,9 @@ def main():
     parser.add_argument('-label_file', type=str, default="",
                         help="""Label File""")
 
-
     # GPU
     parser.add_argument('-gpuid', default="", type=str,
                        help="Use CUDA on the listed devices.")
-
-
 
     opt = parser.parse_args()
 
@@ -105,45 +105,56 @@ def main():
     #generate hidden prepresentation
     
     if(opt.source_test_data != ""):
-        print("Generating hidden representation for test data:",opt.source_test_data)
+        print("Generating hidden representation for test data:",
+              opt.source_test_data)
         if(opt.model == ""):
-            logging.error("No model given to generate the hidden represnation");
-            exit(-1);
+            logging.error(
+                "No model given to generate the hidden represnation")
+            exit(-1)
         if(opt.model_type == ""):
-            logging.error("No model type given to generate the hidden represnation");
-            exit(-1);
+            logging.error(
+                "No model type given to generate the hidden represnation")
+            exit(-1)
         elif(opt.model_type == "OpenNMT"):
-            data = toolkits.ONMT.generate(opt.source_test_data,opt.model,opt.representation,opt.gpuid)
+            data = toolkits.ONMT.generate(opt.source_test_data, opt.model,
+                                          opt.representation, opt.gpuid)
         elif (opt.model_type == "vivisectONMT"):
-            data = toolkits.vivisectONMT.generate(opt.source_test_data, opt.target_test_data, opt.model,
-                                                  opt.representation, opt.label_representation,opt.gpuid)
+            data = toolkits.vivisectONMT.generate(
+                opt.source_test_data, opt.target_test_data, opt.model,
+                opt.representation, opt.label_representation, opt.gpuid)
         elif (opt.model_type == "vivisectSockeye"):
             if(use_sockeye):
-                data = toolkits.vivisectSockeye.generate(opt.source_test_data, opt.target_test_data, opt.model,
-                                                  opt.representation, opt.label_representation, opt.gpuid)
+                data = toolkits.vivisectSockeye.generate(
+                    opt.source_test_data, opt.target_test_data, opt.model,
+                    opt.representation, opt.label_representation, opt.gpuid)
             else:
                 print("Sockeye is not available")
         else:
             logging.error("Unknown model type:",opt.model_type)
             exit(-1)
+    elif opt.model_type == "vivisectNeuralMonkey":
+        print("Generating hidden representation for the Neural Monkey.")
+        data = toolkits.vivisectNeuralMonkey.generate(opt.model)
     elif(opt.hidden_representation != ""):
-        with open(opt.hidden_representation) as f:
-            data = json.load(f)
+        data = representation.Dataset.load_dataset(opt.hidden_representation)
+        #with open(opt.hidden_representation) as f:
+            #data = json.load(f)
     else:
-        logging.error("Neither testdata with model nor hidden representation given")
+        logging.error(
+            "Neither testdata with model nor hidden representation given")
         exit(-1)
 
     #print("Number of sentences:",len(data.sentences))
     #for i in range(len(data.sentences)):
     #    print(data.sentences[i].data.shape)
 
-    #annote hidden representation with labels
+    # annotate hidden representation with labels
     if(opt.prediction_task == "BPE"):
         annotator.BPE.annotate(data);
     elif(opt.prediction_task == "SentenceLabels"):
-        annotator.SentenceLabels.annotate(data,opt.label_file)
+        annotator.SentenceLabels.annotate(data, opt.label_file)
     elif(opt.prediction_task == "TokenLabels"):
-        annotator.TokenLabels.annotate(data,opt.label_file)
+        annotator.TokenLabels.annotate(data, opt.label_file)
 
     ## save hidden representation if necessry
     if(opt.hidden_representation_out != ""):
@@ -154,7 +165,7 @@ def main():
         f.close()
         
 
-    #inpsect hidden representation
+    #inspect hidden representation
     if(opt.ml_technique  == "intrinsic"):
         result = inspector.Intrinsic.inspect(data)
     elif(opt.ml_technique == "classifier"):
